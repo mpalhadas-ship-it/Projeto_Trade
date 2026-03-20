@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Projeto.Metodo.Oliver/IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#f0f4f8;color:#1e293b;font-family:'Outfit',sans-serif;min-height:100vh;}
+  button{cursor:pointer;transition:opacity 0.15s;font-family:'Outfit',sans-serif;}
+  button:hover{opacity:0.82;}
+  #header{background:#fff;border-bottom:2px solid #e2e8f0;padding:14px 28px;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:0 2px 12px rgba(0,0,0,0.06);}
+  #logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  #title{font-weight:700;font-size:15px;color:#0f172a;}
+  #header-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  #last-update{font-size:10px;color:#94a3b8;}
+  #btn-scan{background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(37,99,235,0.3);}
+  #btn-scan:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed;box-shadow:none;}
+  #progress-bar{height:3px;background:#e2e8f0;}
+  #progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#7c3aed);transition:width 0.3s;}
+  #content{padding:24px 28px;}
+  #loading-state{text-align:center;padding:80px 0;}
+  .load-icon{font-size:40px;margin-bottom:14px;}
+  .load-text{color:#2563eb;font-size:13px;}
+  .load-sub{color:#94a3b8;font-size:11px;margin-top:6px;}
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;}
+  .card{background:#fff;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid;position:relative;overflow:hidden;transition:transform 0.18s,box-shadow 0.18s;}
+  .card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.10);}
+  .card-accent{position:absolute;top:0;left:0;right:0;height:3px;}
+  .sma-status{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .sma-cell{border-radius:8px;padding:7px 4px;text-align:center;border:1px solid;}
+  .prox-track{height:5px;background:#f1f5f9;border-radius:4px;overflow:hidden;border:1px solid #e2e8f0;}
+  .prox-fill{height:100%;border-radius:4px;}
+  .row-info{display:flex;align-items:center;justify-content:space-between;border-radius:8px;padding:8px 12px;border:1px solid;}
+  #alarm-banner{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:0 4px 24px rgba(0,0,0,0.18);display:none;}
+  .cal-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9;}
+  textarea{width:100%;min-height:110px;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;font-family:'Outfit',sans-serif;font-size:14px;color:#1e293b;background:#f8fafc;resize:vertical;outline:none;line-height:1.6;}
+  textarea:focus{border-color:#2563eb;background:#fff;}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div id="logo">📡</div>
+    <div id="title">Projeto.Metodo.Oliver/IA</div>
+  </div>
+  <div id="header-right">
+    <span id="last-update"></span>
+    <button id="btn-scan" onclick="runScan()">🔄 Atualizar</button>
+  </div>
+</div>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<div id="content">
+  <div id="loading-state">
+    <div class="load-icon">📡</div>
+    <div class="load-text">Iniciando scanner...</div>
+    <div class="load-sub">Clique em Atualizar para buscar os dados</div>
+  </div>
+  <div class="cards-grid" id="cards-grid"></div>
+  <div id="rsi-card-wrap" style="margin-top:16px;"></div>
+</div>
+
+<div style="padding:0 28px 24px;">
+  <div style="background:#fff;border-radius:16px;box-shadow:0 1px 6px rgba(0,0,0,0.06);overflow:hidden;">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:18px;">📅</span>
+        <span style="font-weight:700;font-size:15px;color:#0f172a;">Calendário de Eventos — XAU/USD</span>
+      </div>
+      <span style="font-size:11px;color:#94a3b8;">Horários BRT</span>
+    </div>
+    <div style="padding:16px 20px;" id="calendar-list"></div>
+  </div>
+</div>
+
+<div style="padding:0 28px 48px;">
+  <div style="background:#fff;border-radius:16px;border:2px dashed #e2e8f0;padding:24px 28px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+      <span style="font-size:22px;">💡</span>
+      <span style="font-weight:700;font-size:15px;color:#0f172a;letter-spacing:.06em;text-transform:uppercase;">Sugira algo para o Projeto</span>
+    </div>
+    <textarea id="suggestion-box" placeholder="Descreva uma ideia, indicador ou ferramenta... Se possível relacionado ao método Oliver Velez..."></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+      <span id="suggestion-feedback" style="font-size:13px;color:#16a34a;font-weight:600;visibility:hidden;">Registrado!</span>
+      <button onclick="submitSuggestion()" style="background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;border:none;border-radius:8px;padding:9px 22px;font-size:13px;font-weight:700;">Enviar</button>
+    </div>
+    <div id="suggestions-list" style="margin-top:20px;"></div>
+  </div>
+</div>
+
+<div id="alarm-banner"></div>
+
+<script>
+const API_KEY = "623474460dfb40f392a9e6907bfba8ea";
+const ALL_ASSETS = [{symbol:"XAU/USD", label:"XAU/USD", market:"Commodity"}];
+let allResults = [], lastPos = {}, srData = JSON.parse(localStorage.getItem("oliver_sr")||"{}");
+
+function calcSMA(arr,p){ if(!arr||arr.length<p)return null; return arr.slice(-p).reduce((a,b)=>a+b,0)/p; }
+function getProx(pct){ const a=Math.abs(pct); if(a<0.5)return{label:"Muito próximo",color:"#d97706",icon:"🎯"}; if(a<2)return{label:"Próximo",color:"#ca8a04",icon:"📍"}; return{label:"Distante",color:"#94a3b8",icon:"📏"}; }
+function fmt(p){ if(p==null)return"—"; if(p>10000)return p.toFixed(0); if(p>100)return p.toFixed(2); return p.toFixed(4); }
+
+function calcRSI(closes, period=14){
+  if(!closes || closes.length < period+1) return null;
+  let gains=0, losses=0;
+  for(let i=closes.length-period; i<closes.length; i++){
+    const diff = closes[i]-closes[i-1];
+    if(diff>0) gains+=diff; else losses+=Math.abs(diff);
+  }
+  const avgGain = gains/period;
+  const avgLoss = losses/period;
+  if(avgLoss===0) return 100;
+  const rs = avgGain/avgLoss;
+  return 100-(100/(1+rs));
+}
+
+async function fetchRSI(symbol){
+  try{
+    const [m15, h1, d1, w1] = await Promise.all([
+      tdFetch(symbol,"15min",50),
+      tdFetch(symbol,"1h",50),
+      tdFetch(symbol,"1day",50),
+      tdFetch(symbol,"1week",30),
+    ]);
+    return {
+      m15: calcRSI(m15.map(v=>parseFloat(v.close))),
+      h1:  calcRSI(h1.map(v=>parseFloat(v.close))),
+      d1:  calcRSI(d1.map(v=>parseFloat(v.close))),
+      w1:  calcRSI(w1.map(v=>parseFloat(v.close))),
+    };
+  }catch(e){ console.warn("RSI fetch error:", e.message); return null; }
+}
+
+async function tdFetch(sym, interval, size){
+  const r = await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(sym)}&interval=${interval}&outputsize=${size}&apikey=${API_KEY}&dp=6`);
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const j = await r.json();
+  if(j.status==="error") throw new Error(j.message);
+  return j.values.reverse();
+}
+
+async function fetchAsset(asset){
+  try{
+    const m5  = await tdFetch(asset.symbol,"5min",210);
+    const h1  = await tdFetch(asset.symbol,"1h",55);
+    const closes = m5.map(v=>parseFloat(v.close));
+    const h1c    = h1.map(v=>parseFloat(v.close));
+    const openDay= parseFloat(m5[0].open);
+    const price  = closes[closes.length-1];
+    const sma200 = calcSMA(closes,200); if(!sma200) return null;
+    const sma50  = calcSMA(closes,50);
+    const sma20  = calcSMA(closes,20);
+    const sma8   = calcSMA(closes,8);
+    const pct    = (price-sma200)/sma200*100;
+    const pos    = price>sma200?"above":"below";
+    const flow   = sma8&&sma20?(sma8>sma20?"bull":"bear"):null;
+    const ab50   = sma50?price>sma50:null;
+    const ab20   = sma20?price>sma20:null;
+    const ab8    = sma8?price>sma8:null;
+    const aligned= (pos==="above"&&flow==="bull"&&ab50===true)||(pos==="below"&&flow==="bear"&&ab50===false);
+    const h1sma8 = calcSMA(h1c,8), h1sma20=calcSMA(h1c,20), h1sma50=calcSMA(h1c,50);
+    const h1p    = h1c[h1c.length-1];
+    const h1trend= h1sma8&&h1sma20?(h1sma8>h1sma20?"bull":"bear"):null;
+    const h1ab   = h1sma50?h1p>h1sma50:null;
+    const dayPct = openDay?((price-openDay)/openDay*100):null;
+    const rsi = await fetchRSI(asset.symbol);
+
+    // Média de variação % dos últimos 7 dias (usando candles diários)
+    let avg7d = null;
+    try{
+      const d7 = await tdFetch(asset.symbol,"1day",8);
+      const dCloses = d7.map(v=>parseFloat(v.close));
+      const dVars = [];
+      for(let i=1;i<dCloses.length;i++){
+        dVars.push(Math.abs((dCloses[i]-dCloses[i-1])/dCloses[i-1]*100));
+      }
+      avg7d = dVars.slice(-7).reduce((a,b)=>a+b,0)/Math.min(dVars.length,7);
+    }catch(e){}
+
+    return {...asset,price,sma200,sma50,sma20,sma8,pct,prox:getProx(pct),pos,flow,ab50,ab20,ab8,aligned,h1trend,h1ab,dayPct,openDay,rsi,avg7d};
+  }catch(e){ console.warn(asset.label,e.message); return null; }
+}
+
+function saveSR(){ localStorage.setItem("oliver_sr",JSON.stringify(srData)); }
+function openSR(label){
+  const val=prompt("Nível e nome opcional (ex: 3280.50, Topo histórico)");
+  if(!val)return;
+  const parts=val.split(",");
+  const v=parseFloat(parts[0].trim());
+  if(isNaN(v)){alert("Inválido.");return;}
+  const lbl=(parts[1]||"").trim();
+  if(!srData[label])srData[label]=[];
+  srData[label].push({v,lbl});
+  saveSR(); renderResults();
+}
+function deleteSR(label,idx){ srData[label].splice(idx,1); saveSR(); renderResults(); }
+function srHTML(label,price){
+  const levels=(srData[label]||[]).slice().sort((a,b)=>b.v-a.v);
+  if(!levels.length)return'<span style="font-size:11px;color:#cbd5e1;">Nenhum nível cadastrado</span>';
+  return levels.map((l,i)=>{
+    const dist=price?((l.v-price)/price*100):null;
+    const col=dist>0?"#dc2626":"#16a34a";
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f8fafc;">
+      <span style="font-weight:700;font-size:12px;color:${col};">${l.v}</span>
+      <span style="flex:1;font-size:11px;color:#94a3b8;">${l.lbl||""}</span>
+      ${dist!=null?`<span style="font-size:11px;font-weight:600;color:${col};">${dist>0?"+":""}${dist.toFixed(2)}%</span>`:""}
+      <button onclick="deleteSR('${label}',${i})" style="font-size:11px;color:#fca5a5;background:none;border:none;padding:0;">✕</button>
+    </div>`;
+  }).join("");
+}
+
+function smaCell(tf,up){
+  if(up===null)return`<div class="sma-cell" style="background:#f8fafc;border-color:#e2e8f0;"><div style="font-size:13px;color:#cbd5e1;text-align:center;">—</div><div style="font-size:9px;color:#94a3b8;text-align:center;margin-top:2px;">${tf}</div></div>`;
+  return`<div class="sma-cell" style="background:${up?"#f0fdf4":"#fef2f2"};border-color:${up?"#86efac":"#fca5a5"};"><div style="font-size:14px;font-weight:700;color:${up?"#16a34a":"#dc2626"};text-align:center;">${tf}</div><div style="font-size:9px;font-weight:600;color:${up?"#16a34a":"#dc2626"};opacity:.7;text-align:center;margin-top:2px;">${up?"▲ favor":"▼ contra"}</div></div>`;
+}
+
+function cardHTML(a){
+  const up=a.pos==="above";
+  const pf=Math.min(Math.abs(a.pct)/5*100,100).toFixed(1);
+  return `<div class="card" style="border-color:${a.aligned?(up?"#86efac":"#fca5a5"):"#e2e8f0"};">
+    <div class="card-accent" style="background:${up?"#16a34a":"#dc2626"};"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+      <span style="font-weight:700;font-size:17px;color:#0f172a;">${a.label}</span>
+      <span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px;background:#ca8a04;color:#fff;">COMMODITY</span>
+    </div>
+    <div style="background:#f8fafc;border-radius:10px;padding:10px 14px;border:1px solid #f1f5f9;display:flex;align-items:baseline;gap:8px;">
+      <span style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Preço</span>
+      <span style="font-size:26px;font-weight:700;color:#0f172a;">${fmt(a.price)}</span>
+    </div>
+    <div class="sma-status">${smaCell("M60",up)}${smaCell("M15",a.ab50)}${smaCell("M5",a.ab20)}${smaCell("M2",a.ab8)}</div>
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+        <span style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Distância da MM200</span>
+        <span style="font-size:10px;font-weight:700;color:${a.prox.color};">${a.prox.icon} ${a.prox.label} · ${a.pct>0?"+":""}${a.pct.toFixed(2)}%</span>
+      </div>
+      <div class="prox-track"><div class="prox-fill" style="width:${pf}%;background:${a.prox.color};"></div></div>
+    </div>
+    ${a.dayPct!=null?`<div class="row-info" style="background:${a.dayPct>=0?"#f0fdf4":"#fef2f2"};border-color:${a.dayPct>=0?"#86efac":"#fca5a5"};"><span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Variação do dia</span><span style="font-weight:700;font-size:15px;color:${a.dayPct>=0?"#16a34a":"#dc2626"};">${a.dayPct>=0?"▲":"▼"} ${Math.abs(a.dayPct).toFixed(2)}%</span></div>`:""}
+    ${a.avg7d!=null?`<div class="row-info" style="background:#f8fafc;border-color:#e2e8f0;"><span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Média variação 7 dias</span><span style="font-weight:700;font-size:15px;color:#7c3aed;">± ${a.avg7d.toFixed(2)}%</span></div>`:""}
+    ${a.h1ab!=null?`<div class="row-info" style="background:${a.h1ab?"#f0fdf4":"#fef2f2"};border-color:${a.h1ab?"#86efac":"#fca5a5"};"><span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Tendência H1</span><span style="font-weight:700;font-size:14px;color:${a.h1ab?"#16a34a":"#dc2626"};">${a.h1ab?"▲ ALTA":"▼ BAIXA"} · ${a.h1ab?"acima":"abaixo"} MM50</span></div>`:""}
+    <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;border:1px solid #e2e8f0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Suportes / Resistências</span>
+        <button onclick="openSR('${a.label}')" style="font-size:11px;font-weight:700;color:#2563eb;background:none;border:none;">+ Adicionar</button>
+      </div>
+      ${srHTML(a.label,a.price)}
+    </div>
+  </div>`;
+}
+
+function rsiCardHTML(rsi){
+  if(!rsi) return "";
+  const tfs = [
+    {label:"M15", val:rsi.m15},
+    {label:"H1",  val:rsi.h1},
+    {label:"D1",  val:rsi.d1},
+    {label:"W1",  val:rsi.w1},
+  ];
+  const cells = tfs.map(tf=>{
+    if(tf.val==null) return `<div style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 8px;text-align:center;">
+      <div style="font-size:11px;color:#94a3b8;font-weight:600;margin-bottom:6px;">${tf.label}</div>
+      <div style="font-size:20px;font-weight:700;color:#cbd5e1;">—</div>
+    </div>`;
+    const up  = tf.val >= 50;
+    const ext = tf.val >= 70 || tf.val <= 30;
+    const col = up ? "#16a34a" : "#dc2626";
+    const bg  = up ? "#f0fdf4" : "#fef2f2";
+    const brd = up ? "#86efac" : "#fca5a5";
+    const tag = tf.val>=70?"Sobrecomprado":tf.val<=30?"Sobrevendido":tf.val>=50?"Força":"Fraqueza";
+    return `<div style="flex:1;background:${bg};border:1px solid ${brd};border-radius:10px;padding:14px 8px;text-align:center;${ext?"box-shadow:0 0 0 2px "+col+"44;":""}">
+      <div style="font-size:11px;color:${col};font-weight:700;margin-bottom:6px;">${tf.label}</div>
+      <div style="font-size:22px;font-weight:700;color:${col};">${tf.val.toFixed(0)}</div>
+      <div style="font-size:9px;font-weight:600;color:${col};opacity:.8;margin-top:4px;">${tag}</div>
+    </div>`;
+  }).join("");
+  return `<div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid #e2e8f0;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span style="font-size:16px;">📊</span>
+      <span style="font-weight:700;font-size:15px;color:#0f172a;">RSI — XAU/USD</span>
+      <span style="font-size:10px;color:#94a3b8;margin-left:auto;">Verde ≥ 50 · Vermelho &lt; 50</span>
+    </div>
+    <div style="display:flex;gap:8px;">${cells}</div>
+  </div>`;
+}
+
+function renderResults(){
+  document.getElementById("loading-state").style.display="none";
+  document.getElementById("cards-grid").innerHTML=allResults.map(cardHTML).join("");
+  // RSI card
+  const rsiWrap = document.getElementById("rsi-card-wrap");
+  const rsi = allResults[0]?.rsi;
+  if(rsiWrap) rsiWrap.innerHTML = rsiCardHTML(rsi);
+}
+
+function playBeep(freq,dur){
+  try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=freq;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur/1000);o.start();o.stop(ctx.currentTime+dur/1000);}catch(e){}
+}
+function checkAlarm(){
+  allResults.forEach(a=>{
+    const prev=lastPos[a.label];
+    if(prev&&prev!==a.pos){
+      const up=a.pos==="above";
+      playBeep(up?1000:600,400);
+      const b=document.getElementById("alarm-banner");
+      b.style.cssText=`position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:0 4px 24px rgba(0,0,0,0.18);background:${up?"#16a34a":"#dc2626"};color:#fff;display:block;`;
+      b.textContent=up?"🔔 XAU/USD cruzou ACIMA da MM200!":"🔔 XAU/USD cruzou ABAIXO da MM200!";
+      setTimeout(()=>b.style.display="none",5000);
+    }
+    lastPos[a.label]=a.pos;
+  });
+}
+
+async function runScan(){
+  const btn=document.getElementById("btn-scan");
+  const fill=document.getElementById("progress-fill");
+  btn.disabled=true; btn.textContent="⏳ Buscando..."; fill.style.width="0%"; allResults=[];
+  let done=0;
+  const results=await Promise.all(ALL_ASSETS.map(a=>fetchAsset(a).then(r=>{done++;fill.style.width=(done/ALL_ASSETS.length*100)+"%";return r;})));
+  allResults=results.filter(r=>r!=null);
+  renderResults(); checkAlarm();
+  btn.disabled=false; btn.textContent="🔄 Atualizar";
+  document.getElementById("last-update").textContent="Atualizado às "+new Date().toLocaleTimeString("pt-BR");
+}
+
+const EVENTS=[
+  {daily:true,time:"04:00",label:"Abertura Ásia (Tóquio / Xangai)",impact:"low"},
+  {daily:true,time:"08:00",label:"Abertura Europa (Frankfurt/Londres)",impact:"medium"},
+  {daily:true,time:"09:30",label:"Abertura NYSE / NASDAQ",impact:"medium"},
+  {daily:true,time:"17:30",label:"Fechamento Europa",impact:"low"},
+  {daily:true,time:"22:00",label:"Fechamento NYSE",impact:"low"},
+  {day:2,time:"09:30",label:"Dados econômicos EUA",impact:"high"},
+  {day:3,time:"09:30",label:"Dados econômicos EUA",impact:"high"},
+  {day:3,time:"14:00",label:"Ata do FOMC (quando agendado)",impact:"high"},
+  {day:3,time:"15:30",label:"Estoques de Petróleo EIA",impact:"medium"},
+  {day:4,time:"09:30",label:"Pedidos de Seguro Desemprego",impact:"high"},
+  {day:5,time:"09:30",label:"Payroll / NFP (1ª Sexta do mês)",impact:"high"},
+  {day:5,time:"10:00",label:"ISM Manufatura / Serviços",impact:"medium"},
+];
+const IMP={high:{bg:"#fef2f2",border:"#fca5a5",dot:"#dc2626",label:"Alto"},medium:{bg:"#fffbeb",border:"#fcd34d",dot:"#d97706",label:"Médio"},low:{bg:"#f0fdf4",border:"#86efac",dot:"#16a34a",label:"Baixo"}};
+
+function renderCalendar(){
+  // Força horário de Brasília (UTC-3) independente do fuso do PC
+  const nowUTC = Date.now();
+  const brtOffset = -3 * 60 * 60 * 1000;
+  const nowBRT = new Date(nowUTC + brtOffset);
+  const today = nowBRT.getUTCDay();
+  const nowMinutes = nowBRT.getUTCHours()*60 + nowBRT.getUTCMinutes();
+
+  const wrap = document.getElementById("calendar-list");
+  const list = EVENTS.filter(e=>e.daily||e.day===today).sort((a,b)=>a.time.localeCompare(b.time));
+  if(!list.length){wrap.innerHTML='<span style="color:#94a3b8;font-size:13px;">Nenhum evento hoje.</span>';return;}
+
+  const hBRT = String(nowBRT.getUTCHours()).padStart(2,"0");
+  const mBRT = String(nowBRT.getUTCMinutes()).padStart(2,"0");
+
+  wrap.innerHTML = `<div style="font-size:10px;color:#94a3b8;margin-bottom:10px;">Agora em Brasília: <b style="color:#0f172a;">${hBRT}:${mBRT}</b></div>`
+  + list.map(e=>{
+    const s=IMP[e.impact];
+    const[h,m]=e.time.split(":");
+    const evMinutes = +h*60 + +m;
+    const past = evMinutes < nowMinutes;
+    return`<div class="cal-item" style="opacity:${past?.45:1};">
+      <div style="min-width:46px;font-weight:700;font-size:13px;color:#0f172a;">${e.time}</div>
+      <div style="width:8px;height:8px;border-radius:50%;background:${s.dot};flex-shrink:0;"></div>
+      <div style="flex:1;font-size:13px;color:#334155;">${e.label}${past?' <span style="font-size:10px;color:#94a3b8;">✓</span>':''}</div>
+      <div style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:${s.bg};border:1px solid ${s.border};color:${s.dot};">${s.label}</div>
+    </div>`;
+  }).join("");
+}
+
+let suggestions=JSON.parse(localStorage.getItem("oliver_suggestions")||"[]");
+function renderSuggestions(){
+  const w=document.getElementById("suggestions-list");
+  if(!suggestions.length){w.innerHTML="";return;}
+  w.innerHTML=`<div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;font-weight:600;margin-bottom:10px;">Sugestões (${suggestions.length})</div>`+suggestions.map(s=>`<div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:8px;padding:10px 14px;margin-bottom:7px;display:flex;justify-content:space-between;gap:12px;"><span style="font-size:13px;color:#334155;line-height:1.5;">${s.text}</span><span style="font-size:9px;color:#cbd5e1;white-space:nowrap;">${s.date}</span></div>`).join("");
+}
+function submitSuggestion(){
+  const box=document.getElementById("suggestion-box");
+  const text=box.value.trim();if(!text)return;
+  suggestions.unshift({text,date:new Date().toLocaleDateString("pt-BR")});
+  localStorage.setItem("oliver_suggestions",JSON.stringify(suggestions));
+  box.value="";
+  const fb=document.getElementById("suggestion-feedback");fb.style.visibility="visible";
+  setTimeout(()=>fb.style.visibility="hidden",3000);
+  renderSuggestions();
+}
+
+renderCalendar();
+renderSuggestions();
+setInterval(renderCalendar,60000);
+</script>
+</body>
+</html>

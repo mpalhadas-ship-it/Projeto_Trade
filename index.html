@@ -156,13 +156,175 @@ async function tdFetch(sym, interval, size){
   return j.values.reverse();
 }
 
+// ─── SETUPS OLIVER VELEZ ─────────────────────────────────────────────────────
+function detectSetups(candles, sma8, sma20){
+  const setups = [];
+  const n = candles.length;
+  if(n < 5) return setups;
+
+  // Candle helpers
+  const c  = candles[n-1]; // atual
+  const p1 = candles[n-2]; // anterior
+  const p2 = candles[n-3];
+  const p3 = candles[n-4];
+  const p4 = candles[n-5];
+
+  const body  = v => Math.abs(v.close - v.open);
+  const range = v => v.high - v.low;
+  const isBull = v => v.close > v.open;
+  const isBear = v => v.close < v.open;
+  const tailDown = v => Math.min(v.open,v.close) - v.low;
+  const tailUp   = v => v.high - Math.max(v.open,v.close);
+
+  // Média do corpo dos últimos 20 candles
+  const last20 = candles.slice(-21,-1);
+  const avgBody  = last20.reduce((s,v)=>s+body(v),0)/last20.length;
+  const avgRange = last20.reduce((s,v)=>s+range(v),0)/last20.length;
+
+  // ── LOC ──────────────────────────────────────────────────────────────────────
+  function getLOC(price, s8, s20){
+    if(!s8||!s20) return null;
+    const d8  = Math.abs((price-s8)/s8*100);
+    const d20 = Math.abs((price-s20)/s20*100);
+    const near8  = d8  < 0.3;
+    const near20 = d20 < 0.5;
+    const far20  = d20 > 1.5;
+    if(near8 && near20)  return 1;
+    if(!near8 && near20) return 2;
+    if(near8 && !near20) return 3;
+    if(far20)            return 4;
+    return 5;
+  }
+
+  const loc = getLOC(c.close, sma8, sma20);
+  const locLabel = loc ? `LOC${loc}` : "";
+  const locColor = {1:"#16a34a",2:"#2563eb",3:"#d97706",4:"#7c3aed",5:"#94a3b8"}[loc]||"#94a3b8";
+
+  // ── BE — Barra Elefante ───────────────────────────────────────────────────
+  if(body(c) >= avgBody * 3){
+    const dir = isBull(c)?"BULL":"BEAR";
+    setups.push({name:"🐘 BE "+dir, color:isBull(c)?"#16a34a":"#dc2626", loc, locLabel, locColor,
+      desc:`Barra Elefante ${dir} — Big Players presentes`});
+  }
+
+  // ── NRB — Narrow Range Bar ────────────────────────────────────────────────
+  if(range(c) < avgRange * 0.3){
+    setups.push({name:"🔬 NRB", color:"#7c3aed", loc, locLabel, locColor,
+      desc:"Narrow Range Bar — compressão, movimento iminente"});
+  }
+
+  // ── BT — Bottoming Tail ───────────────────────────────────────────────────
+  if(range(c)>0 && tailDown(c)/range(c) >= 0.66){
+    setups.push({name:"📍 BT", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Bottoming Tail — sinal de fundo"});
+  }
+
+  // ── TT — Topping Tail ─────────────────────────────────────────────────────
+  if(range(c)>0 && tailUp(c)/range(c) >= 0.66){
+    setups.push({name:"📍 TT", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Topping Tail — sinal de topo"});
+  }
+
+  // ── Bull/Bear 180 ─────────────────────────────────────────────────────────
+  if(isBull(p1) && isBear(c) && body(p1)>avgBody*0.5 && body(c)>avgBody*0.5)
+    setups.push({name:"🔄 BEAR 180", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Bear 180 — virada vendedora"});
+  if(isBear(p1) && isBull(c) && body(p1)>avgBody*0.5 && body(c)>avgBody*0.5)
+    setups.push({name:"🔄 BULL 180", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Bull 180 — virada compradora"});
+
+  // ── GBR — Green Bar Reversal (3-5 vermelhos + verde) ─────────────────────
+  const prev5 = [p4,p3,p2,p1];
+  const consRed  = [p1,p2,p3,p4].findIndex(v=>!isBear(v));
+  const consGreen= [p1,p2,p3,p4].findIndex(v=>!isBull(v));
+  if(isBull(c) && (consRed===-1?4:consRed)>=2)
+    setups.push({name:"🟢 GBR", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Green Bar Reversal — fundo potencial"});
+  if(isBear(c) && (consGreen===-1?4:consGreen)>=2)
+    setups.push({name:"🔴 RBR", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Red Bar Reversal — topo potencial"});
+
+  // ── RBTO — Red Bar Take Out ───────────────────────────────────────────────
+  if(isBear(p1) && isBull(c) && c.close > p1.high)
+    setups.push({name:"📈 RBTO", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Red Bar Take Out — compra confirmada"});
+
+  // ── GBTO — Green Bar Take Out ─────────────────────────────────────────────
+  if(isBull(p1) && isBear(c) && c.close < p1.low)
+    setups.push({name:"📉 GBTO", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Green Bar Take Out — venda confirmada"});
+
+  // ── RBI — Red Bar Ignored ─────────────────────────────────────────────────
+  if(isBear(p1) && body(p1)<avgBody*0.5 && isBull(c) && c.close>p1.high)
+    setups.push({name:"🚫🔴 RBI", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Red Bar Ignored — compra, mínima não pode ser violada"});
+
+  // ── GBI — Green Bar Ignored ───────────────────────────────────────────────
+  if(isBull(p1) && body(p1)<avgBody*0.5 && isBear(c) && c.close<p1.low)
+    setups.push({name:"🚫🟢 GBI", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Green Bar Ignored — venda, máxima não pode ser violada"});
+
+  // ── Regra das 2 Cores ─────────────────────────────────────────────────────
+  if(isBull(p2)&&isBull(p1)&&body(p2)>avgBody&&body(p1)>avgBody&&isBear(c)&&c.close<p1.low)
+    setups.push({name:"2️⃣ 2 CORES BEAR", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Regra das 2 Cores — 2 BEs bull sem continuidade"});
+  if(isBear(p2)&&isBear(p1)&&body(p2)>avgBody&&body(p1)>avgBody&&isBull(c)&&c.close>p1.high)
+    setups.push({name:"2️⃣ 2 CORES BULL", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Regra das 2 Cores — 2 BEs bear sem continuidade"});
+
+  // ── Poder das Duplas ──────────────────────────────────────────────────────
+  if(isBull(p1)&&isBull(c)&&c.high>p1.high&&tailUp(c)/range(c)>=0.3&&tailUp(p1)/range(p1)>=0.3)
+    setups.push({name:"👥 DUPLA TOPO", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Poder das Duplas — topo, sinal de venda"});
+  if(isBear(p1)&&isBear(c)&&c.low<p1.low&&tailDown(c)/range(c)>=0.3&&tailDown(p1)/range(p1)>=0.3)
+    setups.push({name:"👥 DUPLA FUNDO", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Poder das Duplas — fundo, sinal de compra"});
+
+  // ── Marching Bull/Bear ────────────────────────────────────────────────────
+  if(isBull(c)&&isBull(p1)&&isBull(p2)&&body(c)>avgBody*0.5)
+    setups.push({name:"🟢🟢🟢 MARCHING BULL", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Marching Bull — tendência acelerando para cima"});
+  if(isBear(c)&&isBear(p1)&&isBear(p2)&&body(c)>avgBody*0.5)
+    setups.push({name:"🔴🔴🔴 MARCHING BEAR", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Marching Bear — tendência acelerando para baixo"});
+
+  // ── TTTO — Topping Tail Take Out ──────────────────────────────────────────
+  if(tailUp(p1)/range(p1)>=0.66 && c.close>p1.high)
+    setups.push({name:"⬆️ TTTO", color:"#16a34a", loc, locLabel, locColor,
+      desc:"Topping Tail Take Out — compra, TT anulada"});
+
+  // ── BTTO — Bottoming Tail Take Out ────────────────────────────────────────
+  if(tailDown(p1)/range(p1)>=0.66 && c.close<p1.low)
+    setups.push({name:"⬇️ BTTO", color:"#dc2626", loc, locLabel, locColor,
+      desc:"Bottoming Tail Take Out — venda, BT anulada"});
+
+  // ── CAS — Venda de Avanço Climático ──────────────────────────────────────
+  if(sma20){
+    const distMM20 = (c.close - sma20)/sma20*100;
+    if(distMM20 > 2.0 && isBull(c) && body(c)>avgBody)
+      setups.push({name:"☄️ CAS", color:"#dc2626", loc, locLabel, locColor,
+        desc:"Avanço Climático — preço muito afastado da MM20, venda"});
+  }
+
+  return setups;
+}
+
 async function fetchAsset(asset){
   try{
     const m5  = await tdFetch(asset.symbol,"5min",210);
     const h1  = await tdFetch(asset.symbol,"1h",55);
-    const closes = m5.map(v=>parseFloat(v.close));
+
+    // Candles OHLC completos
+    const candles = m5.map(v=>({
+      open:  parseFloat(v.open),
+      high:  parseFloat(v.high),
+      low:   parseFloat(v.low),
+      close: parseFloat(v.close),
+    }));
+
+    const closes = candles.map(v=>v.close);
     const h1c    = h1.map(v=>parseFloat(v.close));
-    const openDay= parseFloat(m5[0].open);
+    const openDay= candles[0].open;
     const price  = closes[closes.length-1];
     const sma200 = calcSMA(closes,200); if(!sma200) return null;
     const sma50  = calcSMA(closes,50);
@@ -177,24 +339,25 @@ async function fetchAsset(asset){
     const aligned= (pos==="above"&&flow==="bull"&&ab50===true)||(pos==="below"&&flow==="bear"&&ab50===false);
     const h1sma8 = calcSMA(h1c,8), h1sma20=calcSMA(h1c,20), h1sma50=calcSMA(h1c,50);
     const h1p    = h1c[h1c.length-1];
-    const h1trend= h1sma8&&h1sma20?(h1sma8>h1sma20?"bull":"bear"):null;
     const h1ab   = h1sma50?h1p>h1sma50:null;
     const dayPct = openDay?((price-openDay)/openDay*100):null;
-    const rsi = await fetchRSI(asset.symbol);
+    const rsi    = await fetchRSI(asset.symbol);
 
-    // Média de variação % dos últimos 7 dias (usando candles diários)
+    // Média variação 7 dias
     let avg7d = null;
     try{
       const d7 = await tdFetch(asset.symbol,"1day",8);
-      const dCloses = d7.map(v=>parseFloat(v.close));
-      const dVars = [];
-      for(let i=1;i<dCloses.length;i++){
-        dVars.push(Math.abs((dCloses[i]-dCloses[i-1])/dCloses[i-1]*100));
-      }
-      avg7d = dVars.slice(-7).reduce((a,b)=>a+b,0)/Math.min(dVars.length,7);
+      const dC = d7.map(v=>parseFloat(v.close));
+      const dV = [];
+      for(let i=1;i<dC.length;i++) dV.push(Math.abs((dC[i]-dC[i-1])/dC[i-1]*100));
+      avg7d = dV.slice(-7).reduce((a,b)=>a+b,0)/Math.min(dV.length,7);
     }catch(e){}
 
-    return {...asset,price,sma200,sma50,sma20,sma8,pct,prox:getProx(pct),pos,flow,ab50,ab20,ab8,aligned,h1trend,h1ab,dayPct,openDay,rsi,avg7d};
+    // Detectar setups Oliver Velez
+    const setups = detectSetups(candles, sma8, sma20);
+
+    return {...asset,price,sma200,sma50,sma20,sma8,pct,prox:getProx(pct),pos,flow,
+            ab50,ab20,ab8,aligned,h1ab,dayPct,openDay,rsi,avg7d,setups,candles};
   }catch(e){ console.warn(asset.label,e.message); return null; }
 }
 
@@ -262,6 +425,26 @@ function cardHTML(a){
       </div>
       ${srHTML(a.label,a.price)}
     </div>
+
+    <!-- Setups Oliver Velez -->
+    <div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+      <div style="background:#0f172a;padding:8px 12px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:13px;">🎯</span>
+        <span style="font-size:11px;font-weight:700;color:#fff;letter-spacing:.06em;text-transform:uppercase;">Setups Detectados</span>
+        <span style="margin-left:auto;font-size:10px;color:#94a3b8;">M5 atual</span>
+      </div>
+      ${(a.setups&&a.setups.length)?a.setups.map(s=>`
+        <div style="padding:8px 12px;border-bottom:1px solid #f1f5f9;display:flex;align-items:flex-start;gap:10px;">
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:13px;color:${s.color};">${s.name}
+              <span style="font-size:10px;font-weight:600;padding:1px 7px;border-radius:20px;background:${s.locColor}22;color:${s.locColor};margin-left:6px;">${s.locLabel}</span>
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-top:2px;">${s.desc}</div>
+          </div>
+        </div>`).join("")
+      :`<div style="padding:10px 12px;text-align:center;"><span style="font-size:11px;color:#cbd5e1;">Nenhum setup no candle atual</span></div>`}
+    </div>
+
   </div>`;
 }
 
@@ -312,18 +495,35 @@ function renderResults(){
 function playBeep(freq,dur){
   try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const o=ctx.createOscillator();const g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=freq;g.gain.setValueAtTime(0.4,ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+dur/1000);o.start();o.stop(ctx.currentTime+dur/1000);}catch(e){}
 }
+function showBanner(msg, color){
+  const b = document.getElementById("alarm-banner");
+  b.style.cssText = `position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:0 4px 24px rgba(0,0,0,0.18);background:${color};color:#fff;display:block;font-family:'Outfit',sans-serif;`;
+  b.textContent = msg;
+  setTimeout(()=>b.style.display="none", 6000);
+}
+
+let lastSetups = {};
 function checkAlarm(){
   allResults.forEach(a=>{
+    // Alarme cruzamento MM200
     const prev=lastPos[a.label];
     if(prev&&prev!==a.pos){
       const up=a.pos==="above";
       playBeep(up?1000:600,400);
-      const b=document.getElementById("alarm-banner");
-      b.style.cssText=`position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 28px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:0 4px 24px rgba(0,0,0,0.18);background:${up?"#16a34a":"#dc2626"};color:#fff;display:block;`;
-      b.textContent=up?"🔔 XAU/USD cruzou ACIMA da MM200!":"🔔 XAU/USD cruzou ABAIXO da MM200!";
-      setTimeout(()=>b.style.display="none",5000);
+      showBanner(up?"🔔 XAU/USD cruzou ACIMA da MM200!":"🔔 XAU/USD cruzou ABAIXO da MM200!", up?"#16a34a":"#dc2626");
     }
     lastPos[a.label]=a.pos;
+
+    // Alarme setups Oliver Velez — alerta se setup novo apareceu
+    const prevSetupNames = lastSetups[a.label]||[];
+    const currSetupNames = (a.setups||[]).map(s=>s.name);
+    const newSetups = currSetupNames.filter(s=>!prevSetupNames.includes(s));
+    if(newSetups.length){
+      playBeep(880, 300);
+      setTimeout(()=>playBeep(1100,300),350);
+      showBanner("🎯 "+a.label+": "+newSetups.join(" · "), "#7c3aed");
+    }
+    lastSetups[a.label] = currSetupNames;
   });
 }
 
